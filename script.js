@@ -1,46 +1,64 @@
-const preview = document.getElementById("preview");
 const upload = document.getElementById("upload");
-const hasil = document.getElementById("hasil");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const hasilList = document.getElementById("hasil-list");
+
+let currentImage = null;
 
 upload.addEventListener("change", function () {
   const file = this.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      preview.src = e.target.result;
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const img = new Image();
+    img.onload = function () {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      currentImage = img;
     };
-    reader.readAsDataURL(file);
-  }
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 });
 
-function deteksi() {
-  if (preview.src === "") {
+async function deteksi() {
+  if (!upload.files[0]) {
     alert("Silakan unggah gambar terlebih dahulu.");
     return;
   }
 
-  // Simulasi deteksi bounding box
-  const box = document.createElement("div");
-  box.style.position = "absolute";
-  box.style.border = "2px solid red";
-  box.style.left = "80px";
-  box.style.top = "60px";
-  box.style.width = "150px";
-  box.style.height = "150px";
+  const formData = new FormData();
+  formData.append("image", upload.files[0]);
 
-  // Tambahkan bounding box ke preview
-  const container = document.getElementById("preview-container");
-  container.style.position = "relative";
-  container.appendChild(box);
+  const response = await fetch("http://localhost:5000/deteksi", {
+    method: "POST",
+    body: formData,
+  });
 
-  // Update hasil deteksi
-  hasil.innerHTML = `
-    <h2>Hasil Deteksi</h2>
-    <p>Model: YOLOv8m</p>
-    <ul>
-      <li>Rambu: Stop</li>
-      <li>Confidence: 0.91</li>
-      <li>Koordinat: (x=80, y=60, w=150, h=150)</li>
-    </ul>
-  `;
+  const data = await response.json();
+
+  // Reset tampilan
+  ctx.drawImage(currentImage, 0, 0);
+  hasilList.innerHTML = "";
+
+  data.forEach((deteksi) => {
+    const { label, confidence, bbox } = deteksi;
+
+    // Gambar bounding box
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+
+    // Gambar label
+    ctx.fillStyle = "red";
+    ctx.font = "16px Arial";
+    ctx.fillText(`${label} (${(confidence * 100).toFixed(1)}%)`, bbox.x, bbox.y - 5);
+
+    // Tambahkan ke daftar hasil
+    const li = document.createElement("li");
+    li.textContent = `Rambu: ${label}, Confidence: ${(confidence * 100).toFixed(1)}%, Lokasi: (${bbox.x}, ${bbox.y})`;
+    hasilList.appendChild(li);
+  });
 }
