@@ -1,29 +1,25 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Deteksi Rambu Lalu Lintas - YOLOv8</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <h1>🚦 Deteksi Rambu Lalu Lintas</h1>
-  <p>Optimisasi deteksi menggunakan YOLOv8 + DeepSORT</p>
+  <p>Optimisasi deteksi menggunakan YOLOv8</p>
 
-  <input type="file" id="upload" accept="image/*">
+  <input type="file" id="upload" accept="image/*" />
+  <br />
+  <button onclick="deteksi()">Deteksi Rambu</button>
+
   <div id="preview-container">
-    <img id="preview" src="" alt="Gambar akan muncul di sini...">
+    <canvas id="canvas" width="640" height="480"></canvas>
   </div>
-
-  <button onclick="deteksi()">Simulasikan Deteksi</button>
 
   <div id="hasil">
     <h2>Hasil Deteksi</h2>
-    <p>Model: YOLOv8m</p>
-    <ul>
-      <li>Rambu: Stop</li>
-      <li>Confidence: 0.91</li>
-      <li>Koordinat: (x=132, y=102)</li>
-    </ul>
+    <ul id="hasil-list"></ul>
   </div>
 
   <script src="script.js"></script>
