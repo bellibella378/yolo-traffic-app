@@ -8,22 +8,25 @@ const detectionResults = document.getElementById('detectionResults');
 
 let model; // Variabel global untuk menyimpan model YOLO
 const MODEL_PATH = './model/model.json'; // Pastikan path ini benar!
-const CLASS_LABELS = ['stop_sign', 'yield_sign', 'speed_limit_30', 'speed_limit_50', 'no_entry', 'pedestrian_crossing', 'traffic_light']; // Ganti dengan label kelas rambu lalu lintas Anda
+// Ganti dengan label kelas rambu lalu lintas Anda sesuai urutan indeks model Anda
+const CLASS_LABELS = ['stop_sign', 'yield_sign', 'speed_limit_30', 'speed_limit_50', 'no_entry', 'pedestrian_crossing', 'traffic_light'];
+// Sesuaikan ukuran input yang diharapkan oleh model YOLO Anda
+const INPUT_SIZE = 416; // Contoh: 416x416
 
 // Fungsi untuk memuat model TensorFlow.js
 async function loadModel() {
     loadingMessage.style.display = 'block';
+    loadingMessage.innerText = 'Memuat model... Harap tunggu.';
     try {
-        // Asumsi model YOLO Anda telah dikonversi ke format tfjs_graph_model
+        console.log('Memuat model dari:', MODEL_PATH);
         model = await tf.loadGraphModel(MODEL_PATH);
-        console.log('Model loaded successfully!');
+        console.log('Model berhasil dimuat!');
         loadingMessage.innerText = 'Model berhasil dimuat. Siap untuk deteksi.';
         detectButton.disabled = false; // Aktifkan tombol deteksi setelah model dimuat
     } catch (error) {
-        console.error('Error loading model:', error);
+        console.error('Gagal memuat model:', error);
         loadingMessage.innerText = `Gagal memuat model: ${error.message}. Pastikan file model ada di '${MODEL_PATH}' dan benar.`;
     } finally {
-        // Sembunyikan pesan loading setelah beberapa saat
         setTimeout(() => {
             loadingMessage.style.display = 'none';
         }, 3000);
@@ -35,19 +38,18 @@ window.onload = loadModel;
 
 // Event listener untuk input gambar
 imageUpload.addEventListener('change', (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             inputImage.src = e.target.result;
             inputImage.onload = () => {
-                // Atur ukuran kanvas sesuai gambar
                 detectionCanvas.width = inputImage.width;
                 detectionCanvas.height = inputImage.height;
-                ctx.clearRect(0, 0, detectionCanvas.width, detectionCanvas.height); // Bersihkan kanvas
-                ctx.drawImage(inputImage, 0, 0, detectionCanvas.width, detectionCanvas.height); // Gambar ulang gambar input
-                detectionResults.innerHTML = '<p>Tidak ada deteksi.</p>'; // Reset hasil
-                detectButton.disabled = !model; // Hanya aktifkan jika model sudah dimuat
+                ctx.clearRect(0, 0, detectionCanvas.width, detectionCanvas.height);
+                ctx.drawImage(inputImage, 0, 0, detectionCanvas.width, detectionCanvas.height);
+                detectionResults.innerHTML = '<p>Tidak ada deteksi.</p>';
+                detectButton.disabled = !model;
             };
         };
         reader.readAsDataURL(file);
@@ -73,106 +75,66 @@ detectButton.addEventListener('click', async () => {
     detectButton.disabled = true;
     loadingMessage.innerText = 'Menganalisis gambar...';
     loadingMessage.style.display = 'block';
-    detectionResults.innerHTML = ''; // Bersihkan hasil sebelumnya
+    detectionResults.innerHTML = '';
 
     try {
-        const tensor = tf.browser.fromPixels(inputImage).resizeBilinear([416, 416]).expandDims(0).toFloat().div(255.0); // Sesuaikan ukuran input YOLO Anda (misal: 416x416)
+        // 1. Preprocess gambar input
+        const img = tf.browser.fromPixels(inputImage);
+        const resizedImg = tf.image.resizeBilinear(img, [INPUT_SIZE, INPUT_SIZE]).toFloat();
+        const normalizedImg = resizedImg.div(255.0).expandDims(0);
 
-        // Melakukan inferensi
-        const predictions = await model.executeAsync(tensor);
+        // 2. Lakukan inferensi model
+        console.log('Melakukan inferensi...');
+        const predictions = await model.executeAsync(normalizedImg);
+        console.log('Inferensi selesai.');
 
-        // TODO: Implement YOLO inference logic here
-        // Bagian ini sangat bergantung pada arsitektur model YOLO Anda dan bagaimana outputnya.
-        // Umumnya, output YOLO akan berupa tensor yang berisi:
-        // - Bounding box (x, y, width, height) atau (x_min, y_min, x_max, y_max)
-        // - Confidence score untuk objek
-        // - Class probabilities
+        // 3. Proses output YOLO untuk mendapatkan bounding box, skor, dan kelas
+        const detections = await processYoloOutput(predictions, inputImage.width, inputImage.height);
 
-        // Contoh dummy output (Anda harus menggantinya dengan logika nyata)
-        // Asumsi output `predictions` adalah array tensor, dan tensor pertama adalah boxData, kedua adalah classData
-        // const [boxData, classData] = await Promise.all(predictions.map(t => t.data()));
-
-        // --- Contoh pseudo-code untuk memproses output YOLO ---
-        // Biasanya melibatkan:
-        // 1. Memproses output tensor ke dalam format yang lebih mudah (misal array JS)
-        // 2. Menerapkan NMS (Non-Maximum Suppression) untuk menghilangkan bounding box yang tumpang tindih
-        // 3. Filtering berdasarkan confidence threshold
-
-        // Untuk demonstrasi, kita akan membuat beberapa bounding box dummy:
-        const detectedObjects = [];
-        // Ganti ini dengan logika pemrosesan output model YOLO Anda yang sebenarnya
-        // Misalnya, jika model Anda mengeluarkan [batch_size, num_boxes, 4+1+num_classes]
-        // Anda perlu memparse tensor tersebut.
-        // Contoh sederhana jika output adalah [x, y, width, height, confidence, class_id]
-        // Misalnya, asumsi output Anda sudah dalam bentuk array flat [x1, y1, w1, h1, conf1, class1, x2, y2, w2, h2, conf2, class2, ...]
-        // Atau jika model Anda mengembalikan tensor yang sudah diproses (misal dari tf.js-models seperti coco-ssd, tapi ini YOLO)
-
-        // *** PENTING: Anda harus mengganti bagian ini dengan logika parsing output YOLO Anda ***
-        // Ini adalah tempat Anda akan mengimplementasikan post-processing YOLO,
-        // seperti decoding box, NMS, dll.
-        // Jika Anda menggunakan model yang telah dikonversi secara otomatis, mungkin ada cara untuk mendapatkan kotak, skor, dan kelas secara langsung.
-        
-        // Contoh placeholder output. Anda akan mendapatkan ini dari hasil prediksi model Anda
-        // Format: [x_min, y_min, x_max, y_max, score, class_id] (normalisasi 0-1)
-        const dummyDetections = [
-            // Contoh 1: Rambu Stop
-            { x: 0.1, y: 0.2, width: 0.2, height: 0.3, score: 0.95, classId: 0 },
-            // Contoh 2: Rambu Batas Kecepatan
-            { x: 0.5, y: 0.4, width: 0.15, height: 0.2, score: 0.88, classId: 2 },
-        ];
-
-        // Konversi koordinat normalisasi ke koordinat piksel
-        dummyDetections.forEach(d => {
-            const x_min = d.x * detectionCanvas.width;
-            const y_min = d.y * detectionCanvas.height;
-            const width = d.width * detectionCanvas.width;
-            const height = d.height * detectionCanvas.height;
-            const x_max = x_min + width;
-            const y_max = y_min + height;
-
-            detectedObjects.push({
-                box: [x_min, y_min, x_max, y_max],
-                score: d.score,
-                class: CLASS_LABELS[d.classId] || `unknown_class_${d.classId}`,
-                classId: d.classId
-            });
-        });
-
-        // Akhir dari bagian placeholder ***
-
-        // Bersihkan kanvas dan gambar ulang gambar asli
+        // 4. Gambar bounding box dan tampilkan hasil
         ctx.clearRect(0, 0, detectionCanvas.width, detectionCanvas.height);
         ctx.drawImage(inputImage, 0, 0, detectionCanvas.width, detectionCanvas.height);
-
         detectionResults.innerHTML = '';
-        if (detectedObjects.length > 0) {
-            detectedObjects.forEach((obj, index) => {
-                const [x_min, y_min, x_max, y_max] = obj.box;
+
+        if (detections.length > 0) {
+            detections.forEach(detection => {
+                const [x1, y1, x2, y2] = detection.bbox;
+                const score = detection.score;
+                const classId = detection.classId;
+                const className = CLASS_LABELS?.[classId] || `Unknown (${classId})`;
 
                 // Gambar bounding box
                 ctx.beginPath();
-                ctx.rect(x_min, y_min, x_max - x_min, y_max - y_min);
+                ctx.rect(x1, y1, x2 - x1, y2 - y1);
                 ctx.lineWidth = 3;
-                ctx.strokeStyle = '#FF0000'; // Warna merah
+                ctx.strokeStyle = '#FF0000';
                 ctx.stroke();
 
-                // Gambar label teks (kelas dan probabilitas)
+                // Gambar label
                 ctx.fillStyle = '#FF0000';
                 ctx.font = '16px Arial';
-                const text = `${obj.class} (${(obj.score * 100).toFixed(2)}%)`;
-                ctx.fillText(text, x_min + 5, y_min > 20 ? y_min - 10 : y_min + 20); // Posisikan teks
+                const labelText = `${className} (${(score * 100).toFixed(2)}%)`;
+                ctx.fillText(labelText, x1 + 5, y1 > 20 ? y1 - 10 : y1 + 20);
 
-                // Tampilkan hasil di kotak teks
+                // Tampilkan detail di hasil
                 detectionResults.innerHTML += `
                     <div class="detection-item">
-                        <p><span>Objek ${index + 1}:</span> ${obj.class}</p>
-                        <p><span>Confidence:</span> ${(obj.score * 100).toFixed(2)}%</p>
-                        <p><span>Bounding Box (x_min, y_min, x_max, y_max):</span> [${x_min.toFixed(0)}, ${y_min.toFixed(0)}, ${x_max.toFixed(0)}, ${y_max.toFixed(0)}]</p>
+                        <p><span>Objek:</span> ${className}</p>
+                        <p><span>Confidence:</span> ${(score * 100).toFixed(2)}%</p>
+                        <p><span>Bounding Box (x1, y1, x2, y2):</span> [${x1.toFixed(0)}, ${y1.toFixed(0)}, ${x2.toFixed(0)}, ${y2.toFixed(0)}]</p>
                     </div>
                 `;
             });
         } else {
             detectionResults.innerHTML = '<p>Tidak ada rambu lalu lintas terdeteksi.</p>';
+        }
+
+        // Bersihkan tensor dari memori
+        normalizedImg.dispose();
+        if (Array.isArray(predictions)) {
+            predictions.forEach(tensor => tensor.dispose());
+        } else if (predictions) {
+            predictions.dispose();
         }
 
     } catch (error) {
@@ -183,3 +145,75 @@ detectButton.addEventListener('click', async () => {
         detectButton.disabled = false;
     }
 });
+
+// *** FUNGSI INI SANGAT PENTING DAN HARUS DIIMPLEMENTASIKAN SESUAI OUTPUT MODEL YOLO ANDA ***
+async function processYoloOutput(predictions, imgWidth, imgHeight) {
+    // Struktur output 'predictions' akan bergantung pada model YOLO Anda.
+    // Anda perlu memahami bagaimana model Anda mengeluarkan bounding box,
+    // confidence score, dan class probabilities.
+
+    // Contoh umum (TAPI INI MUNGKIN BERBEDA UNTUK MODEL ANDA):
+    // Asumsikan 'predictions' adalah array tensor, dan salah satunya
+    // memiliki bentuk [1, grid_size, grid_size, num_anchors * (5 + num_classes)]
+    // di mana 5 adalah (tx, ty, tw, th, object_confidence).
+
+    if (!Array.isArray(predictions) || predictions.length === 0) {
+        console.warn('Tidak ada output prediksi yang diterima dari model.');
+        return [];
+    }
+
+    // *** IMPLEMENTASI SPESIFIK ANDA DIMULAI DI SINI ***
+    // Anda perlu mengurai output tensor, menerapkan thresholding,
+    // melakukan non-maximum suppression (NMS), dan mengonversi
+    // koordinat bounding box ke skala gambar asli.
+
+    // --- Contoh SANGAT SEDERHANA (MUNGKIN TIDAK BERFUNGSI UNTUK MODEL ANDA) ---
+    // Ini hanya ilustrasi dan perlu disesuaikan.
+    const detectionThreshold = 0.5;
+    const nmsThreshold = 0.4;
+    const numClasses = CLASS_LABELS.length;
+
+    let boxes = [];
+    let scores = [];
+    let classIds = [];
+
+    for (const prediction of predictions) {
+        const data = await prediction.array();
+        // Iterasi melalui output grid dan anchor box (struktur spesifik model Anda)
+        // Ekstrak bounding box, confidence, dan class probabilities
+        // Lakukan filtering berdasarkan threshold
+        // Simpan kotak, skor, dan ID kelas yang relevan
+    }
+
+    // Lakukan Non-Maximum Suppression (NMS) untuk menghilangkan kotak yang tumpang tindih
+    const selectedIndices = await tf.image.nonMaxSuppressionAsync(
+        boxes.map(b => [b.yMin, b.xMin, b.yMax, b.xMax]), // Format [yMin, xMin, yMax, xMax]
+        scores,
+        50, // max_detections
+        nmsThreshold
+    );
+
+    const finalDetections = [];
+    const indices = await selectedIndices.data();
+    for (let i = 0; i < indices.length; ++i) {
+        const index = indices?.[i];
+        if (index !== undefined) {
+            const bbox = boxes?.[index];
+            const score = scores?.[index];
+            const classId = classIds?.[index];
+            if (bbox && score !== undefined && classId !== undefined) {
+                // Konversikan kembali ke skala gambar asli jika perlu
+                const x1 = bbox.xMin * imgWidth;
+                const y1 = bbox.yMin * imgHeight;
+                const x2 = bbox.xMax * imgWidth;
+                const y2 = bbox.yMax * imgHeight;
+                finalDetections.push({ bbox: [x1, y1, x2, y2], score, classId });
+            }
+        }
+    }
+
+    tf.dispose(selectedIndices);
+    // *** AKHIR IMPLEMENTASI SPESIFIK ANDA ***
+
+    return finalDetections;
+}
