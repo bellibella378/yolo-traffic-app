@@ -4,7 +4,7 @@ body {
     color: #333;
     display: flex;
     justify-content: center;
-    align-items: flex-start;
+    align-items: flex-start; /* Mengatur ke atas, agar tidak terlalu ke tengah jika konten panjang */
     min-height: 100vh;
     margin: 0;
     padding: 20px;
@@ -19,6 +19,7 @@ body {
     max-width: 900px;
     width: 100%;
     text-align: center;
+    margin-top: 20px; /* Sedikit margin atas */
 }
 
 h1 {
@@ -43,6 +44,7 @@ input[type="file"] {
     border-radius: 5px;
     background-color: #fff;
     cursor: pointer;
+    width: fit-content; /* Sesuaikan lebar input file */
 }
 
 button {
@@ -73,6 +75,7 @@ button:disabled {
     color: #856404;
     border-radius: 8px;
     display: none; /* Hidden by default, shown by JS */
+    font-weight: bold;
 }
 
 .image-display {
@@ -84,7 +87,7 @@ button:disabled {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 300px; /* placeholder height */
+    min-height: 300px; /* Placeholder height, akan menyesuaikan gambar */
     background-color: #f9f9f9;
 }
 
@@ -113,7 +116,7 @@ canvas {
     padding: 20px;
     max-height: 400px;
     overflow-y: auto;
-    white-space: pre-wrap; /* For better display of JSON/text */
+    white-space: pre-wrap; /* Untuk tampilan teks yang lebih baik */
     text-align: left;
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.9em;
