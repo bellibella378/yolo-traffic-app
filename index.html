@@ -1,27 +1,39 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Deteksi Rambu Lalu Lintas - YOLOv8</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Sign Object Detection (YOLO)</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>🚦 Deteksi Rambu Lalu Lintas</h1>
-  <p>Optimisasi deteksi menggunakan YOLOv8</p>
+    <div class="container">
+        <h1>Deteksi Rambu Lalu Lintas dengan YOLO</h1>
 
-  <input type="file" id="upload" accept="image/*" />
-  <br />
-  <button onclick="deteksi()">Deteksi Rambu</button>
+        <div class="input-section">
+            <input type="file" id="imageUpload" accept="image/*">
+            <button id="detectButton" disabled>Deteksi</button>
+            <p>Pilih gambar rambu lalu lintas untuk dideteksi.</p>
+        </div>
 
-  <div id="preview-container">
-    <canvas id="canvas" width="640" height="480"></canvas>
-  </div>
+        <div class="loading" id="loadingMessage">
+            Memuat model... Harap tunggu.
+        </div>
 
-  <div id="hasil">
-    <h2>Hasil Deteksi</h2>
-    <ul id="hasil-list"></ul>
-  </div>
+        <div class="image-display" id="imageDisplay">
+            <canvas id="detectionCanvas"></canvas>
+            <img id="inputImage" style="display: none;">
+        </div>
 
-  <script src="script.js"></script>
+        <div class="results-section">
+            <h2>Hasil Deteksi</h2>
+            <div id="detectionResults" class="results-box">
+                <p>Tidak ada deteksi.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
