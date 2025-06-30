@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traffic Sign Object Detection (YOLO)</title>
+    <title>Deteksi Rambu Lalu Lintas dengan YOLO (TensorFlow.js)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Deteksi Rambu Lalu Lintas dengan YOLO</h1>
+        <h1>Deteksi Rambu Lalu Lintas</h1>
 
         <div class="input-section">
             <input type="file" id="imageUpload" accept="image/*">
-            <button id="detectButton" disabled>Deteksi</button>
+            <button id="detectButton" disabled>Deteksi Rambu</button>
             <p>Pilih gambar rambu lalu lintas untuk dideteksi.</p>
         </div>
 
@@ -20,7 +20,7 @@
             Memuat model... Harap tunggu.
         </div>
 
-        <div class="image-display" id="imageDisplay">
+        <div class="image-display">
             <canvas id="detectionCanvas"></canvas>
             <img id="inputImage" style="display: none;">
         </div>
