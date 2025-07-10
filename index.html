@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deteksi Rambu Lalu Lintas (TensorFlow.js)</title>
+    <!-- PERUBAHAN: Memuat TensorFlow.js, bukan ONNX Runtime -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <!-- PERUBAHAN: Judul diubah ke TensorFlow.js -->
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-blue-600 mb-2">Deteksi Rambu Lalu Lintas dengan
+            TensorFlow.js</h1>
+        <p class="text-center text-gray-500 mb-6">Unggah sebuah gambar untuk mendeteksi rambu lalu lintas secara
+            real-time di browser Anda.</p>
+
+        <!-- Area Input -->
+        <div class="mb-6 text-center">
+            <label for="image-upload"
+                class="cursor-pointer inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">
+                Pilih Gambar
+            </label>
+            <input type="file" id="image-upload" class="hidden" accept="image/*">
+        </div>
+
+        <!-- Area Status dan Hasil -->
+        <div id="status" class="text-center text-gray-600 mb-4 h-6"></div>
+        <div id="loader" class="loader mx-auto hidden mb-4"></div>
+
+        <div class="w-full bg-gray-200 rounded-lg overflow-hidden">
+            <canvas id="output-canvas" class="w-full h-auto"></canvas>
+        </div>
+    </div>
+
+    <footer class="text-center text-gray-400 mt-6 text-sm">
+        <!-- PERUBAHAN: Path model diubah ke model.json -->
+        <p>Pastikan file <code class="bg-gray-200 p-1 rounded-md">model.json</code> (dan file pendukungnya) berada di
+            folder yang sama.</p>
+    </footer>
+
+
+    <script>
+        // --- KONFIGURASI ---
+        const MODEL_PATH = './web_model/model.json';
+
+        // --- PERBAIKAN KRUSIAL ---
+        // Model Anda mengeluarkan 15 kelas (output shape adalah 1x19x8400 -> 4 box + 15 kelas).
+        // Anda HARUS mengganti daftar placeholder ini dengan 15 nama kelas Anda yang sebenarnya,
+        // sesuai dengan urutan saat training.
+        const CLASS_NAMES = [
+            'Kelas 0', 'Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4',
+            'Kelas 5', 'Kelas 6', 'Kelas 7', 'Kelas 8', 'Kelas 9',
+            'Kelas 10', 'Kelas 11', 'Kelas 12', 'Kelas 13', 'Kelas 14'
+        ];
+
+        const CONF_THRESHOLD = 0.3;
+        const NMS_THRESHOLD = 0.45;
+        const MODEL_INPUT_WIDTH = 640;
+        const MODEL_INPUT_HEIGHT = 640;
+
+        // Referensi Elemen DOM
+        const imageUpload = document.getElementById('image-upload');
+        const canvas = document.getElementById('output-canvas');
+        const ctx = canvas.getContext('2d');
+        const statusDiv = document.getElementById('status');
+        const loader = document.getElementById('loader');
+
+        let model; // Variabel untuk menyimpan model TensorFlow.js
+
+        // Fungsi untuk menampilkan status
+        function updateStatus(message) {
+            statusDiv.textContent = message;
+        }
+
+        // Fungsi untuk memuat model TensorFlow.js dengan shape yang benar
+        async function loadModel() {
+            updateStatus('Memuat model TensorFlow.js...');
+            loader.classList.remove('hidden');
+            try {
+                model = await tf.loadGraphModel(MODEL_PATH);
+                const warmUpTensor = tf.zeros([1, 3, MODEL_INPUT_HEIGHT, MODEL_INPUT_WIDTH]);
+                const result = await model.executeAsync(warmUpTensor);
+                tf.dispose(result);
+                warmUpTensor.dispose();
+
+                updateStatus('Model berhasil dimuat. Silakan pilih gambar.');
+            } catch (e) {
+                updateStatus(`Error saat memuat model: ${e.message}`);
+                console.error(e);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Event listener untuk input file
+        imageUpload.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!model) {
+                updateStatus('Model belum siap. Harap tunggu.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = async () => {
+                    await runDetection(img);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Fungsi utama untuk menjalankan deteksi
+        async function runDetection(img) {
+            updateStatus('Memproses gambar dan melakukan deteksi...');
+            loader.classList.remove('hidden');
+
+            try {
+                const inputTensor = preprocess(img);
+                const results = await model.executeAsync(inputTensor);
+
+                const outputData = results.dataSync();
+                const { boxes, scores, classIds } = await postprocess(outputData, img.width, img.height);
+
+                drawResults(img, boxes, scores, classIds);
+
+                if (boxes.length > 0) {
+                    updateStatus(`Deteksi selesai. Ditemukan ${boxes.length} objek.`);
+                } else {
+                    updateStatus('Deteksi selesai. Tidak ada objek yang ditemukan di atas ambang batas.');
+                }
+
+                tf.dispose([inputTensor, results]);
+
+            } catch (e) {
+                updateStatus(`Error saat deteksi: ${e.message}`);
+                console.error(e);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Fungsi untuk pra-pemrosesan gambar menggunakan TensorFlow.js
+        function preprocess(img) {
+            return tf.tidy(() => {
+                let tensor = tf.browser.fromPixels(img);
+                const resized = tf.image.resizeBilinear(tensor, [MODEL_INPUT_HEIGHT, MODEL_INPUT_WIDTH]);
+                const normalized = resized.div(255.0);
+                const batched = normalized.expandDims(0);
+                return batched.transpose([0, 3, 1, 2]);
+            });
+        }
+
+        // Fungsi untuk pasca-pemrosesan hasil dari tensor TF.js
+        async function postprocess(outputData, originalWidth, originalHeight) {
+            // Logika transpose sekarang akan bekerja dengan benar karena CLASS_NAMES.length sudah 15
+            const numClasses = CLASS_NAMES.length;
+            const numDetections = outputData.length / (4 + numClasses);
+            const detections = [];
+            for (let i = 0; i < numDetections; i++) {
+                const detection = [];
+                for (let j = 0; j < (4 + numClasses); j++) {
+                    detection.push(outputData[j * numDetections + i]);
+                }
+                detections.push(detection);
+            }
+
+            let boxes = [];
+            let scores = [];
+            let classIds = [];
+            let maxConfidence = 0;
+
+            const xScale = originalWidth / MODEL_INPUT_WIDTH;
+            const yScale = originalHeight / MODEL_INPUT_HEIGHT;
+
+            detections.forEach(det => {
+                const classScores = det.slice(4);
+                const confidence = Math.max(...classScores);
+
+                if (confidence > maxConfidence) maxConfidence = confidence;
+
+                if (confidence >= CONF_THRESHOLD) {
+                    const classId = classScores.indexOf(confidence);
+                    const [cx, cy, w, h] = det.slice(0, 4);
+
+                    const x1 = (cx - w / 2) * xScale;
+                    const y1 = (cy - h / 2) * yScale;
+                    const width = w * xScale;
+                    const height = h * yScale;
+
+                    boxes.push([y1, x1, y1 + height, x1 + width]);
+                    scores.push(confidence);
+                    classIds.push(classId);
+                }
+            });
+
+            console.log(`Skor kepercayaan (confidence) tertinggi yang ditemukan sebelum filtering: ${maxConfidence}`);
+
+            if (boxes.length === 0) {
+                return { boxes: [], scores: [], classIds: [] };
+            }
+
+            const boxesTensor = tf.tensor2d(boxes);
+            const scoresTensor = tf.tensor1d(scores);
+
+            const nmsIndices = await tf.image.nonMaxSuppressionAsync(boxesTensor, scoresTensor, 50, NMS_THRESHOLD, CONF_THRESHOLD);
+            const finalIndices = nmsIndices.dataSync();
+
+            tf.dispose([boxesTensor, scoresTensor, nmsIndices]);
+
+            const finalBoxes = [];
+            const finalScores = [];
+            const finalClassIds = [];
+
+            for (const i of finalIndices) {
+                const [y1, x1, y2, x2] = boxes[i];
+                finalBoxes.push([x1, y1, x2 - x1, y2 - y1]);
+                finalScores.push(scores[i]);
+                finalClassIds.push(classIds[i]);
+            }
+
+            return { boxes: finalBoxes, scores: finalScores, classIds: finalClassIds };
+        }
+
+        // Fungsi untuk menggambar hasil pada canvas (tidak ada perubahan)
+        function drawResults(img, boxes, scores, classIds) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+
+            boxes.forEach((box, i) => {
+                const classId = classIds[i];
+                const score = scores[i];
+                const [x, y, w, h] = box;
+
+                const color = `hsl(${(classId * 50) % 360}, 90%, 50%)`;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, w, h);
+
+                const label = `${CLASS_NAMES[classId]} (${score.toFixed(2)})`;
+                ctx.fillStyle = color;
+                ctx.font = 'bold 16px sans-serif';
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillRect(x - 1, y - 20, textWidth + 10, 20);
+                ctx.fillStyle = 'white';
+                ctx.fillText(label, x + 5, y - 5);
+            });
+        }
+
+        // Mulai dengan memuat model saat halaman dibuka
+        loadModel();
+    </script>
+</body>
+
+</html>
